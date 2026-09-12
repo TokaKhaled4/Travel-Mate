@@ -17,7 +17,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 st.set_page_config(
     page_title="TravelMate",
-    page_icon="🌍",
+    page_icon="✈️",
     layout="centered",
 )
 
@@ -54,7 +54,7 @@ if st.sidebar.button("🗑️ Clear Chat"):
 # ============================================================
 
 if not openrouter_key:
-    st.title("🌍 TravelMate")
+    st.title("✈️ TravelMate")
     st.info("Enter your OpenRouter API token in the sidebar to start chatting.")
     st.stop()
 
