@@ -12,9 +12,11 @@ from langchain.chat_models import init_chat_model
 from langchain.messages import HumanMessage
 from langchain.tools import tool
 from langchain.agents import create_agent
+
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+
 from langgraph.checkpoint.memory import InMemorySaver
 
 
@@ -53,20 +55,6 @@ st.sidebar.caption(
 
 
 # ============================================================
-# SESSION STATE
-# ============================================================
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-if "memory" not in st.session_state:
-    st.session_state.memory = InMemorySaver()
-
-if "thread_id" not in st.session_state:
-    st.session_state.thread_id = "travel_chat"
-
-
-# ============================================================
 # CLEAR CHAT
 # ============================================================
 
@@ -80,12 +68,12 @@ if st.sidebar.button("🗑️ Clear Chat"):
 
 
 # ============================================================
-# API CONFIGURATION
+# API KEY
 # ============================================================
 
 if not openrouter_key:
 
-    st.title("✈️ TravelMate")
+    st.title("🌍 TravelMate")
 
     st.info(
         "Enter your OpenRouter API token in the sidebar "
@@ -102,6 +90,7 @@ RESTCOUNTRIES_API_KEY = restcountries_key
 
 # ============================================================
 # MODEL
+# Same model as notebook
 # ============================================================
 
 model = init_chat_model(
@@ -113,13 +102,16 @@ model = init_chat_model(
 
 # ============================================================
 # STRUCTURED OUTPUT
+# Same schema as notebook
 # ============================================================
 
 class TripRequest(BaseModel):
 
     destination: Optional[str] = Field(
         default=None,
-        description="The country or city the user wants to visit"
+        description=(
+            "The country or city the user wants to visit"
+        )
     )
 
     duration_days: Optional[int] = Field(
@@ -139,8 +131,8 @@ class TripRequest(BaseModel):
     interests: list[str] = Field(
         default_factory=list,
         description=(
-            "Travel interests such as history, beaches, "
-            "food, nature"
+            "Travel interests such as history, "
+            "beaches, food, nature"
         )
     )
 
@@ -157,21 +149,17 @@ structured_model = model.with_structured_output(
 
 # ============================================================
 # WEATHER TOOL
+# Same tool as notebook
 # ============================================================
 
 @tool
 def get_weather(city: str) -> str:
     """
     Get the current weather and today's forecast for a city.
-    Use this when the user asks about weather or travel
-    conditions.
+    Use this when the user asks about weather or travel conditions.
     """
 
     try:
-
-        # -----------------------------
-        # Geocoding
-        # -----------------------------
 
         geo_url = (
             "https://geocoding-api.open-meteo.com/v1/search"
@@ -193,18 +181,18 @@ def get_weather(city: str) -> str:
         geo_data = geo_response.json()
 
         if not geo_data.get("results"):
-            return f"Could not find the location: {city}"
+
+            return (
+                f"Could not find the location: {city}"
+            )
 
         location = geo_data["results"][0]
 
         latitude = location["latitude"]
         longitude = location["longitude"]
+
         name = location["name"]
         country = location.get("country", "")
-
-        # -----------------------------
-        # Weather
-        # -----------------------------
 
         weather_url = (
             "https://api.open-meteo.com/v1/forecast"
@@ -240,7 +228,9 @@ def get_weather(city: str) -> str:
 
     except requests.RequestException as e:
 
-        return f"Weather API error: {str(e)}"
+        return (
+            f"Weather API error: {str(e)}"
+        )
 
     except Exception as e:
 
@@ -251,21 +241,19 @@ def get_weather(city: str) -> str:
 
 # ============================================================
 # COUNTRY TOOL
+# Same tool as notebook
 # ============================================================
 
 def _extract_names(
     value,
     key_candidates=("name", "code", "common"),
 ):
-    """
-    Normalize a field that could be a dictionary,
-    list of dictionaries, or list of strings.
-    """
 
     if value is None:
         return ""
 
     if isinstance(value, dict):
+
         return ", ".join(value.keys())
 
     if isinstance(value, list):
@@ -280,19 +268,21 @@ def _extract_names(
 
             elif isinstance(item, dict):
 
-                for key in key_candidates:
+                for k in key_candidates:
 
-                    if key in item:
+                    if k in item:
 
                         parts.append(
-                            str(item[key])
+                            str(item[k])
                         )
 
                         break
 
                 else:
 
-                    parts.append(str(item))
+                    parts.append(
+                        str(item)
+                    )
 
         return ", ".join(parts)
 
@@ -338,10 +328,12 @@ def get_country_info(country_name: str) -> str:
 
             msg = payload["errors"][0].get(
                 "message",
-                "Unknown error",
+                "Unknown error"
             )
 
-            return f"Country API error: {msg}"
+            return (
+                f"Country API error: {msg}"
+            )
 
         objects = (
             payload
@@ -358,11 +350,17 @@ def get_country_info(country_name: str) -> str:
 
         data = objects[0]
 
-        capitals = data.get("capitals", [])
+        capitals = data.get(
+            "capitals",
+            []
+        )
 
-        if capitals and isinstance(
-            capitals[0],
-            dict
+        if (
+            capitals
+            and isinstance(
+                capitals[0],
+                dict
+            )
         ):
 
             capital = capitals[0].get(
@@ -380,12 +378,12 @@ def get_country_info(country_name: str) -> str:
 
         currencies = _extract_names(
             data.get("currencies"),
-            key_candidates=("name", "code"),
+            key_candidates=("name", "code")
         )
 
         languages = _extract_names(
             data.get("languages"),
-            key_candidates=("name",),
+            key_candidates=("name",)
         )
 
         region = data.get(
@@ -431,20 +429,36 @@ def get_country_info(country_name: str) -> str:
 
 tools = [
     get_weather,
-    get_country_info,
+    get_country_info
 ]
 
 
 # ============================================================
 # MEMORY
+# Same as notebook
 # ============================================================
 
+if "memory" not in st.session_state:
+
+    st.session_state.memory = (
+        InMemorySaver()
+    )
+
+if "thread_id" not in st.session_state:
+
+    st.session_state.thread_id = (
+        "travel_chat"
+    )
+
+
 memory = st.session_state.memory
+
 thread_id = st.session_state.thread_id
 
 
 # ============================================================
 # SYSTEM PROMPT
+# Same as notebook
 # ============================================================
 
 SYSTEM_PROMPT = """
@@ -471,67 +485,116 @@ WEATHER:
 COUNTRY INFORMATION:
 
 - If the user asks for country facts such as:
-  capital, currency, language, region, or country
-  information, ALWAYS call get_country_info.
+  capital, currency, language, region, country information,
+  or similar factual information, ALWAYS call get_country_info.
 - NEVER answer these questions from your own knowledge.
-- Even if you already know the answer, you MUST call
-  get_country_info.
-- If the user says "that country", "that place",
-  "there", etc., resolve the reference using the
-  previous conversation and then call get_country_info.
+- Even if you already know the answer, you MUST call get_country_info.
+- If the user says "that country", "that place", "there", etc.,
+  resolve the reference using the previous conversation and then
+  call get_country_info for the resolved country.
 
 ========================
 MEMORY RULES
 ========================
 
 - You have conversation memory.
-- ALWAYS use previous conversation messages when
-  answering follow-up questions.
-- If the user refers to something they previously
-  mentioned, retrieve it from the conversation history.
-- NEVER ask the user to repeat information that already
-  exists in the conversation.
+- ALWAYS use previous conversation messages when answering
+  follow-up questions.
+- If the user refers to something they previously mentioned,
+  retrieve it from the conversation history.
+- NEVER ask the user to repeat information that already exists
+  in the conversation.
 - Current structured information is supplemental context only.
-- An empty field in the current structured extraction
-  does NOT mean that the user never provided that information.
-- Preserve previously provided destination, duration,
-  budget, interests, and preferences throughout
-  the conversation.
+- An empty field in the current structured extraction does NOT mean
+  that the user never provided that information.
+- Preserve previously provided destination, duration, budget,
+  interests, and preferences throughout the conversation.
 
 ========================
 TRAVEL PLANNING RULES
 ========================
 
-- Personalize recommendations using information
-  already provided.
-- If enough information exists, make a useful
-  recommendation.
+- Personalize recommendations using information already provided.
+- If enough information exists, make a useful recommendation.
 - If information is genuinely missing, ask for it.
 - Do not invent tool results.
-- When a tool is required by the rules above,
-  actually call the tool before answering.
+- When a tool is required by the rules above, actually call the tool
+  before answering.
 """
 
 
 # ============================================================
 # AGENT
+# Same as notebook
 # ============================================================
 
 agent = create_agent(
     model=model,
     tools=tools,
     system_prompt=SYSTEM_PROMPT,
-    checkpointer=memory,
+    checkpointer=memory
 )
 
 
 # ============================================================
+# IMAGE FUNCTIONS
+# Same logic as notebook
+# ============================================================
+
+def encode_image(uploaded_file):
+
+    return base64.b64encode(
+        uploaded_file.getvalue()
+    ).decode("utf-8")
+
+
+def get_image_data_url(uploaded_file):
+
+    mime_type = uploaded_file.type
+
+    if mime_type is None:
+
+        mime_type = (
+            mimetypes.guess_type(
+                uploaded_file.name
+            )[0]
+        )
+
+    if mime_type is None:
+
+        mime_type = "image/jpeg"
+
+    if not mime_type.startswith(
+        "image/"
+    ):
+
+        raise ValueError(
+            "The uploaded file does not "
+            "appear to be an image."
+        )
+
+    image_base64 = encode_image(
+        uploaded_file
+    )
+
+    return (
+        f"data:{mime_type};base64,"
+        f"{image_base64}"
+    )
+
+
+# ============================================================
 # VALIDATION
+# Same as notebook
 # ============================================================
 
 def validate_user_input(user_input):
 
-    if not isinstance(user_input, str):
+    if not isinstance(
+        user_input,
+        str
+    ):
+
         raise TypeError(
             "User input must be text."
         )
@@ -539,6 +602,7 @@ def validate_user_input(user_input):
     user_input = user_input.strip()
 
     if not user_input:
+
         raise ValueError(
             "User input cannot be empty."
         )
@@ -554,112 +618,45 @@ def validate_user_input(user_input):
 
 
 # ============================================================
-# IMAGE FUNCTIONS
-# ============================================================
-
-def encode_image(uploaded_file):
-
-    image_bytes = uploaded_file.getvalue()
-
-    return base64.b64encode(
-        image_bytes
-    ).decode("utf-8")
-
-
-def get_image_data_url(uploaded_file):
-
-    mime_type = uploaded_file.type
-
-    if not mime_type:
-
-        mime_type = (
-            mimetypes.guess_type(
-                uploaded_file.name
-            )[0]
-            or "image/jpeg"
-        )
-
-    if not mime_type.startswith("image/"):
-
-        raise ValueError(
-            "The uploaded file does not appear "
-            "to be an image."
-        )
-
-    image_base64 = encode_image(
-        uploaded_file
-    )
-
-    return (
-        f"data:{mime_type};base64,"
-        f"{image_base64}"
-    )
-
-
-# ============================================================
-# STRUCTURED OUTPUT → CONTEXT
+# STRUCTURED OUTPUT CONNECTION
+# Same as notebook
 # ============================================================
 
 def trip_request_to_context(
     trip_request: TripRequest
 ) -> str:
 
-    useful_info = []
-
-    if trip_request.destination:
-
-        useful_info.append(
-            f"Destination: "
-            f"{trip_request.destination}"
+    interests = (
+        ", ".join(
+            trip_request.interests
         )
-
-    if trip_request.duration_days:
-
-        useful_info.append(
-            f"Duration: "
-            f"{trip_request.duration_days} days"
-        )
-
-    if trip_request.budget_level:
-
-        useful_info.append(
-            f"Budget: "
-            f"{trip_request.budget_level}"
-        )
-
-    if trip_request.interests:
-
-        useful_info.append(
-            "Interests: "
-            + ", ".join(
-                trip_request.interests
-            )
-        )
-
-    if trip_request.preferred_weather:
-
-        useful_info.append(
-            "Preferred weather: "
-            + trip_request.preferred_weather
-        )
-
-    if useful_info:
-
-        return (
-            "Structured information extracted "
-            "from the current user message:\n"
-            + "\n".join(useful_info)
-            + "\n\n"
-        )
-
-    return (
-        "No new structured trip information "
-        "was provided in this message.\n\n"
+        if trip_request.interests
+        else "Not specified"
     )
+
+    return f"""
+Structured travel information extracted from the user's request:
+
+Destination:
+{trip_request.destination or "Not specified"}
+
+Duration:
+{trip_request.duration_days or "Not specified"} days
+
+Budget:
+{trip_request.budget_level or "Not specified"}
+
+Interests:
+{interests}
+
+Preferred weather:
+{trip_request.preferred_weather or "Not specified"}
+"""
 
 
 # ============================================================
-# LCEL POST-PROCESSING PIPELINE
+# LCEL
+# Same as notebook
 # ============================================================
 
 formatter_prompt = PromptTemplate.from_template(
@@ -673,11 +670,10 @@ points where appropriate.
 CRITICAL RULES:
 
 1. Do NOT provide options or multiple versions.
-2. Do NOT add commentary or explanations.
-3. Do NOT add setups such as:
-   "Here is the formatted version:"
-4. Output ONLY the finalized travel assistant
-   response directly.
+2. Do NOT add commentary, explanations, or setups
+   such as "Here is the formatted version:".
+3. Output ONLY the finalized, reformatted travel
+   assistant response directly.
 
 Raw Response:
 {response}
@@ -694,173 +690,330 @@ output_formatting_pipeline = (
 
 
 # ============================================================
-# RESPONSE CONTENT NORMALIZATION
+# RESPONSE NORMALIZATION
 # ============================================================
 
-def normalize_response_content(content):
+def normalize_response(
+    raw_response
+):
 
-    if isinstance(content, str):
-        return content
+    if isinstance(
+        raw_response,
+        str
+    ):
 
-    if isinstance(content, list):
+        return raw_response
+
+    if isinstance(
+        raw_response,
+        list
+    ):
 
         text_parts = []
 
-        for block in content:
+        for block in raw_response:
 
-            if isinstance(block, dict):
+            if isinstance(
+                block,
+                dict
+            ):
 
-                if block.get("type") == "text":
+                if block.get(
+                    "type"
+                ) == "text":
 
                     text_parts.append(
-                        block.get("text", "")
+                        block.get(
+                            "text",
+                            ""
+                        )
                     )
 
-            elif isinstance(block, str):
+            elif isinstance(
+                block,
+                str
+            ):
 
-                text_parts.append(block)
+                text_parts.append(
+                    block
+                )
 
-        return "\n".join(text_parts)
+        return "\n".join(
+            text_parts
+        )
 
-    return str(content)
+    return str(
+        raw_response
+    )
 
 
 # ============================================================
-# RUN TRAVELMATE
+# RUN AGENT
+# Directly adapted from notebook
 # ============================================================
 
 def run_agent(
     user_input,
-    image_file=None,
+    thread_id="travel_chat",
+    uploaded_image=None
 ):
-
-    user_input = validate_user_input(
-        user_input
-    )
-
-    config = {
-        "configurable": {
-            "thread_id": thread_id
-        }
-    }
-
-    # --------------------------------------------------------
-    # 1. Structured extraction
-    # --------------------------------------------------------
 
     try:
 
-        trip_request = structured_model.invoke(
-            user_input
-        )
+        # =====================================
+        # 1. Validate input
+        # =====================================
 
-        structured_context = (
-            trip_request_to_context(
-                trip_request
+        user_input = (
+            validate_user_input(
+                user_input
             )
         )
+
+
+        # =====================================
+        # 2. Memory configuration
+        # =====================================
+
+        config = {
+            "configurable": {
+                "thread_id": thread_id
+            }
+        }
+
+
+        # =====================================
+        # 3. Extract structured information
+        # =====================================
+
+        try:
+
+            trip_request = (
+                structured_model.invoke(
+                    user_input
+                )
+            )
+
+            structured_context = (
+                trip_request_to_context(
+                    trip_request
+                )
+            )
+
+        except Exception as e:
+
+            print(
+                "Structured output warning:",
+                e
+            )
+
+            structured_context = ""
+
+
+        # =====================================
+        # 4. Do not force empty fields
+        # into follow-up questions
+        # =====================================
+
+        useful_structured_info = []
+
+        if trip_request.destination:
+
+            useful_structured_info.append(
+                f"Destination: "
+                f"{trip_request.destination}"
+            )
+
+        if trip_request.duration_days:
+
+            useful_structured_info.append(
+                f"Duration: "
+                f"{trip_request.duration_days} days"
+            )
+
+        if trip_request.budget_level:
+
+            useful_structured_info.append(
+                f"Budget: "
+                f"{trip_request.budget_level}"
+            )
+
+        if trip_request.interests:
+
+            useful_structured_info.append(
+                "Interests: "
+                + ", ".join(
+                    trip_request.interests
+                )
+            )
+
+        if trip_request.preferred_weather:
+
+            useful_structured_info.append(
+                "Preferred weather: "
+                + trip_request.preferred_weather
+            )
+
+
+        # =====================================
+        # 5. Build structured context
+        # =====================================
+
+        if useful_structured_info:
+
+            structured_context = (
+                "Structured information extracted "
+                "from the current user message:\n"
+                + "\n".join(
+                    useful_structured_info
+                )
+                + "\n\n"
+            )
+
+        else:
+
+            structured_context = (
+                "No new structured trip information "
+                "was provided in this message.\n\n"
+            )
+
+
+        # =====================================
+        # 6. Build text content
+        # =====================================
+
+        text_content = (
+            structured_context
+            + "IMPORTANT:\n"
+            + "Use the previous conversation history "
+            + "to answer follow-up questions. "
+            + "Do not ask the user to repeat information "
+            + "that they already provided.\n\n"
+            + "Current user message:\n"
+            + user_input
+        )
+
+
+        # =====================================
+        # 7. TEXT ONLY
+        # =====================================
+
+        if uploaded_image is None:
+
+            agent_message = {
+                "role": "user",
+                "content": text_content
+            }
+
+
+        # =====================================
+        # 8. TEXT + IMAGE
+        # =====================================
+
+        else:
+
+            image_data_url = (
+                get_image_data_url(
+                    uploaded_image
+                )
+            )
+
+            agent_message = HumanMessage(
+                content=[
+                    {
+                        "type": "text",
+                        "text": text_content
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": image_data_url
+                        }
+                    }
+                ]
+            )
+
+
+        # =====================================
+        # 9. Run agent
+        # =====================================
+
+        result = agent.invoke(
+            {
+                "messages": [
+                    agent_message
+                ]
+            },
+            config
+        )
+
+
+        # =====================================
+        # 10. Extract response
+        # =====================================
+
+        messages = result.get(
+            "messages",
+            []
+        )
+
+        if not messages:
+
+            return (
+                "TravelMate did not return "
+                "a response."
+            )
+
+
+        raw_response = (
+            messages[-1].content
+        )
+
+
+        # =====================================
+        # 11. Normalize response
+        # =====================================
+
+        raw_response = normalize_response(
+            raw_response
+        )
+
+
+        # =====================================
+        # 12. LCEL formatting
+        # =====================================
+
+        formatted_response = (
+            output_formatting_pipeline.invoke(
+                raw_response
+            )
+        )
+
+        return formatted_response
+
+
+    except ValueError as e:
+
+        return (
+            f"Invalid input: {e}"
+        )
+
 
     except Exception as e:
 
-        st.warning(
-            "Structured extraction could not be completed. "
-            "Continuing with the conversation."
-        )
-
-        structured_context = ""
-
-    # --------------------------------------------------------
-    # 2. Build agent context
-    # --------------------------------------------------------
-
-    text_content = (
-        structured_context
-        + "IMPORTANT:\n"
-        + "Use the previous conversation history "
-        + "to answer follow-up questions. "
-        + "Do not ask the user to repeat information "
-        + "that they already provided.\n\n"
-        + "Current user message:\n"
-        + user_input
-    )
-
-    # --------------------------------------------------------
-    # 3. Build message
-    # --------------------------------------------------------
-
-    if image_file is None:
-
-        agent_message = {
-            "role": "user",
-            "content": text_content,
-        }
-
-    else:
-
-        image_data_url = (
-            get_image_data_url(
-                image_file
-            )
-        )
-
-        agent_message = HumanMessage(
-            content=[
-                {
-                    "type": "text",
-                    "text": text_content,
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": image_data_url
-                    },
-                },
-            ]
-        )
-
-    # --------------------------------------------------------
-    # 4. Run agent
-    # --------------------------------------------------------
-
-    result = agent.invoke(
-        {
-            "messages": [
-                agent_message
-            ]
-        },
-        config,
-    )
-
-    # --------------------------------------------------------
-    # 5. Extract response
-    # --------------------------------------------------------
-
-    messages = result.get(
-        "messages",
-        []
-    )
-
-    if not messages:
-
         return (
-            "TravelMate did not return a response."
+            f"Agent error: "
+            f"{type(e).__name__}: {e}"
         )
 
-    raw_response = normalize_response_content(
-        messages[-1].content
-    )
 
-    # --------------------------------------------------------
-    # 6. LCEL formatting
-    # --------------------------------------------------------
+# ============================================================
+# SESSION STATE
+# ============================================================
 
-    formatted_response = (
-        output_formatting_pipeline.invoke(
-            raw_response
-        )
-    )
+if "messages" not in st.session_state:
 
-    return formatted_response
+    st.session_state.messages = []
 
 
 # ============================================================
@@ -875,7 +1028,7 @@ st.caption(
 
 
 # ============================================================
-# DISPLAY CHAT HISTORY
+# DISPLAY PREVIOUS MESSAGES
 # ============================================================
 
 for message in st.session_state.messages:
@@ -884,7 +1037,9 @@ for message in st.session_state.messages:
         message["role"]
     ):
 
-        if message.get("image") is not None:
+        if message.get(
+            "image"
+        ) is not None:
 
             st.image(
                 message["image"]
@@ -907,6 +1062,7 @@ uploaded_image = st.file_uploader(
         "jpeg",
         "webp"
     ],
+    key="travelmate_image"
 )
 
 
@@ -920,20 +1076,23 @@ user_input = st.chat_input(
 
 
 # ============================================================
-# PROCESS MESSAGE
+# CHAT PROCESSING
 # ============================================================
 
 if user_input:
 
     try:
 
-        user_input = validate_user_input(
-            user_input
+        user_input = (
+            validate_user_input(
+                user_input
+            )
         )
 
-        # ----------------------------------------------------
-        # Save image bytes for UI history
-        # ----------------------------------------------------
+
+        # ========================================
+        # Save uploaded image
+        # ========================================
 
         image_bytes = None
 
@@ -943,11 +1102,14 @@ if user_input:
                 uploaded_image.getvalue()
             )
 
-        # ----------------------------------------------------
-        # Display user message
-        # ----------------------------------------------------
 
-        with st.chat_message("user"):
+        # ========================================
+        # Display user message
+        # ========================================
+
+        with st.chat_message(
+            "user"
+        ):
 
             st.markdown(
                 user_input
@@ -959,23 +1121,27 @@ if user_input:
                     uploaded_image
                 )
 
-        # ----------------------------------------------------
+
+        # ========================================
         # Save user message
-        # ----------------------------------------------------
+        # ========================================
 
         st.session_state.messages.append(
             {
                 "role": "user",
                 "content": user_input,
-                "image": image_bytes,
+                "image": image_bytes
             }
         )
 
-        # ----------------------------------------------------
-        # Run TravelMate
-        # ----------------------------------------------------
 
-        with st.chat_message("assistant"):
+        # ========================================
+        # Run TravelMate
+        # ========================================
+
+        with st.chat_message(
+            "assistant"
+        ):
 
             with st.spinner(
                 "TravelMate is thinking..."
@@ -983,35 +1149,46 @@ if user_input:
 
                 response = run_agent(
                     user_input=user_input,
-                    image_file=uploaded_image,
+                    thread_id=thread_id,
+                    uploaded_image=uploaded_image
                 )
+
 
             st.markdown(
                 response
             )
 
-        # ----------------------------------------------------
+
+        # ========================================
         # Save assistant response
-        # ----------------------------------------------------
+        # ========================================
 
         st.session_state.messages.append(
             {
                 "role": "assistant",
-                "content": response,
+                "content": response
             }
         )
 
-        # ----------------------------------------------------
-        # Reset uploader
-        # ----------------------------------------------------
+
+        # ========================================
+        # Clear image uploader
+        # ========================================
+
+        st.session_state.pop(
+            "travelmate_image",
+            None
+        )
 
         st.rerun()
+
 
     except ValueError as e:
 
         st.error(
             f"Invalid input: {e}"
         )
+
 
     except Exception as e:
 
