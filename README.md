@@ -423,16 +423,6 @@ The application will then be available through the local Streamlit URL shown in 
 
 ---
 
-## ☁️ Deployment
-
-TravelMate is deployed using **Streamlit**.
-
-**Live application:**
-
-[https://travel-mate-pbdsvcli7snxvzh7sakj2l.streamlit.app/](https://travel-mate-pbdsvcli7snxvzh7sakj2l.streamlit.app/)
-
----
-
 ## ⚠️ Known Limitations
 
 - **In-memory memory:** `InMemorySaver` does not provide persistent database-backed memory.
