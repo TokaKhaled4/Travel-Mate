@@ -1,4 +1,3 @@
-```python
 import os
 import base64
 import mimetypes
@@ -1020,4 +1019,3 @@ if user_input:
             f"TravelMate error: "
             f"{type(e).__name__}: {e}"
         )
-```
